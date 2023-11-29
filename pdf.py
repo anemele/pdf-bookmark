@@ -1,21 +1,24 @@
 # 如何给PDF文件加目录？ - Emrys的回答 - 知乎
 # https://www.zhihu.com/question/344805337/answer/1116258929
+from itertools import chain
 import sys
 
 if sys.version_info < (3, 7):
     raise NotImplementedError("pikepdf requires Python 3.7+")
 
-import io
 import re
 from pathlib import Path
+from typing import List, Optional, Union, Tuple
 
 from pikepdf import Array, Name, OutlineItem, Page, Pdf, String
 
 
 #################
-# Add bookmarks #
+# Set bookmarks #
 #################
-def _get_parent_bookmark(current_indent, history_indent, bookmarks):
+def _get_parent_bookmark(
+    current_indent: int, history_indent: List[int], bookmarks: List[OutlineItem]
+) -> Optional[OutlineItem]:
     '''The parent of A is the nearest bookmark whose indent is smaller than A's'''
     assert len(history_indent) == len(bookmarks)
     if current_indent == 0:
@@ -27,19 +30,20 @@ def _get_parent_bookmark(current_indent, history_indent, bookmarks):
     return None
 
 
-def addBookmark(pdf_path, bookmark_txt_path, page_offset):
-    if not Path(pdf_path).exists():
-        return "Error: No such file: {}".format(pdf_path)
-    if not Path(bookmark_txt_path).exists():
-        return "Error: No such file: {}".format(bookmark_txt_path)
+def set_bookmark(pdf_path: Path, bookmark_txt_path: Path, page_offset: int):
+    if not pdf_path.exists():
+        return f"Error: No such file: {pdf_path}"
 
-    with io.open(bookmark_txt_path, 'r', encoding='utf-8') as f:
-        bookmark_lines = f.readlines()
+    if not bookmark_txt_path.exists():
+        return f"Error: No such file: {bookmark_txt_path}"
+
+    bookmark_lines = bookmark_txt_path.read_text(encoding='utf-8').strip().splitlines()
 
     pdf = Pdf.open(pdf_path)
     maxPages = len(pdf.pages)
 
-    bookmarks, history_indent = [], []
+    bookmarks: List[OutlineItem] = []
+    history_indent: List[int] = []
     # decide the level of each bookmark according to the relative indent size in each line
     #   no indent:          level 1
     #     small indent:     level 2
@@ -73,13 +77,13 @@ def addBookmark(pdf_path, bookmark_txt_path, page_offset):
     out_path = out_path.with_name(out_path.stem + "-new.pdf")
     pdf.save(out_path)
 
-    return "The bookmarks have been added to %s" % out_path
+    return f"The bookmarks have been added to {out_path}"
 
 
-#####################
-# Extract bookmarks #
-#####################
-def _getDestinationPageNumber(outline, names):
+#################
+# Get bookmarks #
+#################
+def _get_destination_page_number(outline: OutlineItem, names) -> int:
     def find_dest(ref, names):
         resolved = None
         if isinstance(ref, Array):
@@ -96,55 +100,68 @@ def _getDestinationPageNumber(outline, names):
                     resolved = named_page
                     break
         if resolved is not None:
-            return Page(resolved).index
+            return Page(resolved).index()
+        return 0  # This is an append but untested return
 
-    if outline.destination is not None:
-        if isinstance(outline.destination, Array):
-            # 12.3.2.2 Explicit destination
-            # [raw_page, /PageLocation.SomeThing, integer parameters for viewport]
-            raw_page = outline.destination[0]
-            try:
-                page = Page(raw_page)
-                dest = page.index
-            except:
-                dest = find_dest(outline.destination, names)
-        elif isinstance(outline.destination, String):
-            # 12.3.2.2 Named destination, byte string reference to Names
-            # dest = f'<Named Destination in document .Root.Names dictionary: {outline.destination}>'
-            assert names is not None
-            dest = find_dest(outline.destination, names)
-        elif isinstance(outline.destination, Name):
-            # 12.3.2.2 Named desintation, name object (PDF 1.1)
-            # dest = f'<Named Destination in document .Root.Dests dictionary: {outline.destination}>'
-            dest = find_dest(outline.destination, names)
-        elif isinstance(outline.destination, int):
-            # Page number
-            dest = outline.destination
-        else:
-            dest = outline.destination
-        return dest
-    else:
+    if outline.destination is None:
         return find_dest(outline.action.D, names)
 
+    if isinstance(outline.destination, Array):
+        # 12.3.2.2 Explicit destination
+        # [raw_page, /PageLocation.SomeThing, integer parameters for viewport]
+        raw_page = outline.destination[0]
+        try:
+            page = Page(raw_page)
+            return page.index()
+        except:
+            return find_dest(outline.destination, names)
+    elif isinstance(outline.destination, String):
+        # 12.3.2.2 Named destination, byte string reference to Names
+        # dest = f'<Named Destination in document .Root.Names dictionary: {outline.destination}>'
+        assert names is not None
+        return find_dest(outline.destination, names)
+    elif isinstance(outline.destination, Name):
+        # 12.3.2.2 Named desintation, name object (PDF 1.1)
+        # dest = f'<Named Destination in document .Root.Dests dictionary: {outline.destination}>'
+        return find_dest(outline.destination, names)
+    elif isinstance(outline.destination, int):
+        # Page number
+        return outline.destination
 
-def _parse_outline_tree(outlines, level=0, names=None):
+    return 0  # This is an append but untested return
+
+
+def _parse_outline_tree(
+    outlines: Union[OutlineItem, List[OutlineItem]], level: int = 0, names=None
+) -> List[Tuple[int, int, str]]:
     """Return List[Tuple[level(int), page(int), title(str)]]"""
-    ret = []
+
     if isinstance(outlines, (list, tuple)):
-        for heading in outlines:
-            # contains sub-headings
-            ret.extend(_parse_outline_tree(heading, level=level, names=names))
-    else:
-        ret.append(
-            (level, _getDestinationPageNumber(outlines, names) + 1, outlines.title)
+        # contains sub-headings
+        return list(
+            chain.from_iterable(
+                _parse_outline_tree(heading, level=level, names=names)
+                for heading in outlines
+            )
         )
-        for subheading in outlines.children:
-            # contains sub-headings
-            ret.extend(_parse_outline_tree(subheading, level=level + 1, names=names))
-    return ret
+    else:
+        tmp = [
+            (level, _get_destination_page_number(outlines, names) + 1, outlines.title)
+        ]
+
+        # contains sub-headings
+        return list(
+            chain(
+                tmp,
+                chain.from_iterable(
+                    _parse_outline_tree(subheading, level=level + 1, names=names)
+                    for subheading in outlines.children
+                ),
+            )
+        )
 
 
-def extractBookmark(pdf_path, bookmark_txt_path):
+def get_bookmark(pdf_path: Path, bookmark_txt_path: Path) -> str:
     # https://github.com/pikepdf/pikepdf/issues/149#issuecomment-860073511
     def has_nested_key(obj, keys):
         ok = True
@@ -173,10 +190,10 @@ def extractBookmark(pdf_path, bookmark_txt_path):
         else:
             return None
 
-    if not Path(pdf_path).exists():
-        return "Error: No such file: {}".format(pdf_path)
-    if Path(bookmark_txt_path).exists():
-        print("Warning: Overwritting {}".format(bookmark_txt_path))
+    if not pdf_path.exists():
+        return f"Error: No such file: {pdf_path}"
+    if bookmark_txt_path.exists():
+        print(f"Warning: Overwritting {bookmark_txt_path}")
 
     pdf = Pdf.open(pdf_path)
     names = get_names(pdf)
@@ -192,7 +209,7 @@ def extractBookmark(pdf_path, bookmark_txt_path):
             level_space = '  ' * level
             title_page_space = ' ' * (max_length - level * 2 - len(title))
             f.write("{}{}{}{}\n".format(level_space, title, title_page_space, page))
-    return "The bookmarks have been exported to %s" % bookmark_txt_path
+    return f"The bookmarks have been exported to {bookmark_txt_path}"
 
 
 if __name__ == "__main__":
@@ -200,6 +217,6 @@ if __name__ == "__main__":
     if len(args) < 3:
         print("Usage: %s [pdf] [bookmark_txt] [page_offset]" % Path(args[0]).name)
     elif len(args) == 3:
-        print(extractBookmark(args[1], args[2]))
+        print(get_bookmark(Path(args[1]), Path(args[2])))
     else:
-        print(addBookmark(args[1], args[2], int(args[3])))
+        print(set_bookmark(Path(args[1]), Path(args[2]), int(args[3])))

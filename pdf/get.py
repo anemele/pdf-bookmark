@@ -1,35 +1,35 @@
 from itertools import chain
 from pathlib import Path
-from typing import List, Union
+from typing import List, Tuple, Union
 
 from pikepdf import Array, Name, OutlineItem, Page, Pdf, String
 
 
 def parse_outline_tree(
     outlines: Union[OutlineItem, List[OutlineItem]], level: int = 0, names=None
-) -> list:
+) -> List[Tuple[int, int, str]]:
     """Return List[Tuple[level(int), page(int), title(str)]]"""
 
     if isinstance(outlines, (list, tuple)):
         return list(
-            chain(
+            chain.from_iterable(
                 parse_outline_tree(heading, level=level, names=names)
                 for heading in outlines
             )
         )
     else:
-        tmp = (level, get_destiny_page_number(outlines, names) + 1, outlines.title)
-        return [
-            tmp,
-            list(
-                chain(
+        tmp = [(level, get_destiny_page_number(outlines, names) + 1, outlines.title)]
+        return list(
+            chain(
+                tmp,
+                chain.from_iterable(
                     (
                         parse_outline_tree(subheading, level=level + 1, names=names)
                         for subheading in outlines.children
                     ),
-                )
-            ),
-        ]
+                ),
+            )
+        )
 
 
 def get_destiny_page_number(outline: OutlineItem, names) -> int:
@@ -48,8 +48,10 @@ def get_destiny_page_number(outline: OutlineItem, names) -> int:
                         raise TypeError("Unknown type: %s" % type(names[n + 1]))
                     resolved = named_page
                     break
+
         if resolved is not None:
-            return Page(resolved).index()
+            # note: is this tpye hint error? .pyi says it is a method `()->int`, but a literal `int`
+            return Page(resolved).index  # type: ignore
         return 0
 
     if outline.destination is None:
@@ -60,7 +62,8 @@ def get_destiny_page_number(outline: OutlineItem, names) -> int:
         # [raw_page, /PageLocation.SomeThing, integer parameters for viewport]
         raw_page = outline.destination[0]
         try:
-            return Page(raw_page).index()
+            # note: is this tpye hint error? .pyi says it is a method `()->int`, but a literal `int`
+            return Page(raw_page).index  # type: ignore
         except:
             return find_destiny(outline.destination, names)
     elif isinstance(outline.destination, String):
@@ -93,22 +96,19 @@ def get(pdf_path: Path, bookmark_txt_path: Path) -> str:
         if not has_nested_key(pdf.Root, ['/Names', '/Dests']):
             return []
         obj = pdf.Root.Names.Dests
-        names = []
         ks = obj.keys()
         if '/Names' in ks:
-            names.extend(obj.Names)  # type: ignore
+            return obj.Names  # type: ignore
         elif '/Kids' in ks:
-            for k in obj.Kids:  # type: ignore
-                names.extend(get_names(k))
+            return list(chain.from_iterable(map(get_names, obj.Kids)))  # type: ignore
         else:
             raise ValueError
-        return names
 
     if not pdf_path.exists():
         return f'[Error] No such file: {pdf_path}'
 
     if bookmark_txt_path.exists():
-        print(f'[Warning] Overwriting {bookmark_txt_path}')
+        print(f'[Warn] Overwrite {bookmark_txt_path}')
 
     pdf = Pdf.open(pdf_path)
     names = get_names(pdf)
@@ -118,12 +118,14 @@ def get(pdf_path: Path, bookmark_txt_path: Path) -> str:
         return f'[Error] No bookmark is found in {pdf_path}'
 
     # List[Tuple[level(int), page(int), title(str)]]
-    max_length = max(len(item[-1]) + 2 * item[0] for item in outlines) + 1
-    # print(outlines)
-    with open(bookmark_txt_path, 'w') as f:
-        for level, page, title in outlines:
-            level_space = '  ' * level
-            title_page_space = ' ' * (max_length - level * 2 - len(title))
-            f.write(f'{level_space}{title}{title_page_space}{page}\n')
+    max_length = max(len(title) + 2 * level for level, _, title in outlines) + 1
+
+    def fmt(item):
+        level, page, title = item
+        level_space = '  ' * level
+        title_page_space = ' ' * (max_length - level * 2 - len(title))
+        return f'{level_space}{title}{title_page_space}{page}'
+
+    bookmark_txt_path.write_text('\n'.join(map(fmt, outlines)), encoding='utf-8')
 
     return f'[Info] The bookmarks have been exported to\n{bookmark_txt_path}'

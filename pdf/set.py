@@ -46,7 +46,7 @@ def set(pdf_path: Path, bookmark_txt_path: Path, page_offset: int) -> str:
 
             title, page = ' '.join(line2[:-1]), int(line2[-1]) - 1
             if page + page_offset >= max_pages:
-                return f"Error: page index out of range: {page + page_offset} >= {max_pages}"
+                return f"[Error] page index out of range: {page + page_offset} >= {max_pages}"
 
             new_bookmark = OutlineItem(title, page + page_offset)
             if parent is None:
@@ -59,4 +59,4 @@ def set(pdf_path: Path, bookmark_txt_path: Path, page_offset: int) -> str:
     out_path = out_path.with_name(out_path.stem + "-new.pdf")
     pdf.save(out_path)
 
-    return f'The bookmarks have been added to {out_path}'
+    return f'[Info] The bookmarks have been imported to\n{out_path}'

@@ -1,25 +1,22 @@
 # 如何给PDF文件加目录？ - Emrys的回答 - 知乎
 # https://www.zhihu.com/question/344805337/answer/1116258929
+import sys
+
+if sys.version_info < (3, 7):
+    raise NotImplementedError("pikepdf requires Python 3.7+")
 
 import io
 import re
-import sys
-
-from distutils.version import LooseVersion
 from pathlib import Path
+
 from pikepdf import Array, Name, OutlineItem, Page, Pdf, String
-
-
-if LooseVersion(sys.version) < "3.7":
-    raise NotImplementedError("pikepdf requires Python 3.7+")
 
 
 #################
 # Add bookmarks #
 #################
 def _get_parent_bookmark(current_indent, history_indent, bookmarks):
-    '''The parent of A is the nearest bookmark whose indent is smaller than A's
-    '''
+    '''The parent of A is the nearest bookmark whose indent is smaller than A's'''
     assert len(history_indent) == len(bookmarks)
     if current_indent == 0:
         return None
@@ -28,6 +25,7 @@ def _get_parent_bookmark(current_indent, history_indent, bookmarks):
         if history_indent[i] < current_indent:
             return bookmarks[i]
     return None
+
 
 def addBookmark(pdf_path, bookmark_txt_path, page_offset):
     if not Path(pdf_path).exists():
@@ -59,7 +57,10 @@ def addBookmark(pdf_path, bookmark_txt_path, page_offset):
 
             title, page = ' '.join(line2[:-1]), int(line2[-1]) - 1
             if page + page_offset >= maxPages:
-                return "Error: page index out of range: %d >= %d" % (page + page_offset, maxPages)
+                return "Error: page index out of range: %d >= %d" % (
+                    page + page_offset,
+                    maxPages,
+                )
 
             new_bookmark = OutlineItem(title, page + page_offset)
             if parent is None:
@@ -86,12 +87,12 @@ def _getDestinationPageNumber(outline, names):
         else:
             for n in range(0, len(names) - 1, 2):
                 if names[n] == ref:
-                    if names[n+1]._type_name == 'array':
-                        named_page = names[n+1][0]
-                    elif names[n+1]._type_name == 'dictionary':
-                        named_page = names[n+1].D[0]
+                    if names[n + 1]._type_name == 'array':
+                        named_page = names[n + 1][0]
+                    elif names[n + 1]._type_name == 'dictionary':
+                        named_page = names[n + 1].D[0]
                     else:
-                        raise TypeError("Unknown type: %s" % type(names[n+1]))
+                        raise TypeError("Unknown type: %s" % type(names[n + 1]))
                     resolved = named_page
                     break
         if resolved is not None:
@@ -125,6 +126,7 @@ def _getDestinationPageNumber(outline, names):
     else:
         return find_dest(outline.action.D, names)
 
+
 def _parse_outline_tree(outlines, level=0, names=None):
     """Return List[Tuple[level(int), page(int), title(str)]]"""
     ret = []
@@ -133,11 +135,14 @@ def _parse_outline_tree(outlines, level=0, names=None):
             # contains sub-headings
             ret.extend(_parse_outline_tree(heading, level=level, names=names))
     else:
-        ret.append((level, _getDestinationPageNumber(outlines, names) + 1, outlines.title))
+        ret.append(
+            (level, _getDestinationPageNumber(outlines, names) + 1, outlines.title)
+        )
         for subheading in outlines.children:
             # contains sub-headings
-            ret.extend(_parse_outline_tree(subheading, level=level+1, names=names))
+            ret.extend(_parse_outline_tree(subheading, level=level + 1, names=names))
     return ret
+
 
 def extractBookmark(pdf_path, bookmark_txt_path):
     # https://github.com/pikepdf/pikepdf/issues/149#issuecomment-860073511
@@ -191,10 +196,10 @@ def extractBookmark(pdf_path, bookmark_txt_path):
 
 
 if __name__ == "__main__":
-    import sys
     args = sys.argv
-    # print(extractBookmark(args[1], args[2]))
-    if len(args) != 4:
-        print("Usage: %s [pdf] [bookmark_txt] [page_offset]" % args[0])
+    if len(args) < 3:
+        print("Usage: %s [pdf] [bookmark_txt] [page_offset]" % Path(args[0]).name)
+    elif len(args) == 3:
+        print(extractBookmark(args[1], args[2]))
     else:
         print(addBookmark(args[1], args[2], int(args[3])))

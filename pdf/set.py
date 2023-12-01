@@ -4,10 +4,17 @@ from typing import List, Optional
 
 from pikepdf import OutlineItem, Pdf
 
+from .log import logger
 
-def set(pdf_path: Path, bookmark_txt_path: Path, page_offset: int) -> str:
-    assert pdf_path.exists(), f'No such file: {pdf_path}'
-    assert bookmark_txt_path.exists(), f'No such file: {bookmark_txt_path}'
+
+def set(pdf_path: Path, bookmark_txt_path: Path, page_offset: int):
+    if not pdf_path.exists():
+        logger.error(f'no such file: {pdf_path}')
+        exit()
+
+    if not bookmark_txt_path.exists():
+        logger.error(f'no such file: {bookmark_txt_path}')
+        exit()
 
     bookmark_lines = bookmark_txt_path.read_text(encoding='utf-8').strip().split('\n')
 
@@ -46,7 +53,10 @@ def set(pdf_path: Path, bookmark_txt_path: Path, page_offset: int) -> str:
 
             title, page = ' '.join(line2[:-1]), int(line2[-1]) - 1
             if page + page_offset >= max_pages:
-                return f"[Error] page index out of range: {page + page_offset} >= {max_pages}"
+                logger.error(
+                    f"page index out of range: {page + page_offset} >= {max_pages}"
+                )
+                exit()
 
             new_bookmark = OutlineItem(title, page + page_offset)
             if parent is None:
@@ -59,4 +69,4 @@ def set(pdf_path: Path, bookmark_txt_path: Path, page_offset: int) -> str:
     out_path = out_path.with_name(out_path.stem + "-new.pdf")
     pdf.save(out_path)
 
-    return f'[Info] The bookmarks have been imported to\n{out_path}'
+    logger.info(f'the bookmarks have been imported to\n{out_path}')

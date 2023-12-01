@@ -4,6 +4,8 @@ from typing import List, Tuple, Union
 
 from pikepdf import Array, Name, OutlineItem, Page, Pdf, String
 
+from .log import logger
+
 
 def parse_outline_tree(
     outlines: Union[OutlineItem, List[OutlineItem]], level: int = 0, names=None
@@ -82,7 +84,7 @@ def get_destiny_page_number(outline: OutlineItem, names) -> int:
     return outline.destination
 
 
-def get(pdf_path: Path, bookmark_txt_path: Path) -> str:
+def get(pdf_path: Path, bookmark_txt_path: Path):
     # https://github.com/pikepdf/pikepdf/issues/149#issuecomment-860073511
     def has_nested_key(obj, keys):
         to_check = obj
@@ -105,17 +107,19 @@ def get(pdf_path: Path, bookmark_txt_path: Path) -> str:
             raise ValueError
 
     if not pdf_path.exists():
-        return f'[Error] No such file: {pdf_path}'
+        logger.error(f'no such file: {pdf_path}')
+        exit()
 
     if bookmark_txt_path.exists():
-        print(f'[Warn] Overwrite {bookmark_txt_path}')
+        logger.warning(f'overwrite {bookmark_txt_path}')
 
     pdf = Pdf.open(pdf_path)
     names = get_names(pdf)
     with pdf.open_outline() as outline:
         outlines = parse_outline_tree(outline.root, names=names)
     if len(outlines) == 0:
-        return f'[Error] No bookmark is found in {pdf_path}'
+        logger.error(f'no bookmark is found in {pdf_path}')
+        exit()
 
     # List[Tuple[level(int), page(int), title(str)]]
     max_length = max(len(title) + 2 * level for level, _, title in outlines) + 1
@@ -128,4 +132,4 @@ def get(pdf_path: Path, bookmark_txt_path: Path) -> str:
 
     bookmark_txt_path.write_text('\n'.join(map(fmt, outlines)), encoding='utf-8')
 
-    return f'[Info] The bookmarks have been exported to\n{bookmark_txt_path}'
+    logger.info(f'the bookmarks have been exported to\n{bookmark_txt_path}')

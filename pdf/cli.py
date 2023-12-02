@@ -30,7 +30,7 @@ def get(pdf: Path, bookmark: Optional[Path]):
 @cli.command()
 @click.argument('pdf', type=Path)
 @click.argument('bookmark', type=Path)
-@click.argument('offset', type=int)
+@click.argument('offset', type=int, default=0)
 def set(pdf: Path, bookmark: Path, offset: int):
     """set bookmark to a PDF file from a TEXT file"""
     logger.debug(f'{pdf=}')

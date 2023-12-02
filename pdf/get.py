@@ -95,6 +95,9 @@ def get(pdf_path: Path, bookmark_txt_path: Path):
         return True
 
     def get_names(pdf: Pdf) -> List:
+        # 此处可能出错（可能由于PDF被其它程序编辑过）
+        if not hasattr(pdf, 'Root'):
+            return []
         if not has_nested_key(pdf.Root, ['/Names', '/Dests']):
             return []
         obj = pdf.Root.Names.Dests
@@ -115,6 +118,7 @@ def get(pdf_path: Path, bookmark_txt_path: Path):
 
     pdf = Pdf.open(pdf_path)
     names = get_names(pdf)
+
     with pdf.open_outline() as outline:
         outlines = parse_outline_tree(outline.root, names=names)
     if len(outlines) == 0:

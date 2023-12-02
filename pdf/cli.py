@@ -17,6 +17,7 @@ def cli():
 @click.argument('pdf', type=Path)
 @click.argument('bookmark', type=Path, required=False)
 def get(pdf: Path, bookmark: Optional[Path]):
+    """get bookmark from a PDF file"""
     logger.debug(f'{pdf=}')
     logger.debug(f'{bookmark=}')
 
@@ -31,6 +32,7 @@ def get(pdf: Path, bookmark: Optional[Path]):
 @click.argument('bookmark', type=Path)
 @click.argument('offset', type=int)
 def set(pdf: Path, bookmark: Path, offset: int):
+    """set bookmark to a PDF file from a TEXT file"""
     logger.debug(f'{pdf=}')
     logger.debug(f'{bookmark=}')
     logger.debug(f'{offset=}')

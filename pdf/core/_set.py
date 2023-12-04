@@ -4,22 +4,14 @@ from typing import List, Optional
 
 from pikepdf import OutlineItem, Pdf
 
-from .log import logger
+from ..log import logger
+from .common import require_exists, save_as
 
 
-def set(pdf_path: Path, bookmark_txt_path: Path, page_offset: int):
-    if not pdf_path.exists():
-        logger.error(f'no such file: {pdf_path}')
-        exit()
-
-    if not bookmark_txt_path.exists():
-        logger.error(f'no such file: {bookmark_txt_path}')
-        exit()
-
+def _set(pdf: Pdf, bookmark_txt_path: Path, page_offset: int):
     bookmark_lines = bookmark_txt_path.read_text(encoding='utf-8').strip().split('\n')
 
-    pdf = Pdf.open(pdf_path)
-    max_pages = len(pdf.pages)
+    MAX_PAGES = len(pdf.pages)
 
     bookmarks: List[OutlineItem] = []
     history_indent: List[int] = []
@@ -52,9 +44,9 @@ def set(pdf_path: Path, bookmark_txt_path: Path, page_offset: int):
             history_indent.append(indent_size)
 
             title, page = ' '.join(line2[:-1]), int(line2[-1]) - 1
-            if page + page_offset >= max_pages:
+            if page + page_offset >= MAX_PAGES:
                 logger.error(
-                    f"page index out of range: {page + page_offset} >= {max_pages}"
+                    f"page index out of range: {page + page_offset} >= {MAX_PAGES}"
                 )
                 exit()
 
@@ -65,8 +57,32 @@ def set(pdf_path: Path, bookmark_txt_path: Path, page_offset: int):
                 parent.children.append(new_bookmark)
             bookmarks.append(new_bookmark)
 
-    out_path = Path(pdf_path)
-    out_path = out_path.with_name(out_path.stem + "-new.pdf")
-    pdf.save(out_path)
+    return pdf
 
-    logger.info(f'the bookmarks have been imported to\n{out_path}')
+
+def _remove(pdf_path: Path):
+    pdf = Pdf.open(pdf_path)
+    with pdf.open_outline() as outline:
+        outline.root.clear()
+
+    return pdf_path, pdf
+
+
+@save_as()
+@require_exists(2)
+def set(pdf_path: Path, bookmark_txt_path: Path, page_offset: int):
+    pdf = Pdf.open(pdf_path)
+    return pdf_path, _set(pdf, bookmark_txt_path, page_offset)
+
+
+@save_as()
+@require_exists()
+def reset(pdf_path: Path, bookmark_txt_path: Path, page_offset: int):
+    _, pdf = _remove(pdf_path)
+    return pdf_path, _set(pdf, bookmark_txt_path, page_offset)
+
+
+@save_as()
+@require_exists()
+def remove(pdf_path: Path):
+    return _remove(pdf_path)

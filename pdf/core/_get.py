@@ -1,10 +1,11 @@
 from itertools import chain
 from pathlib import Path
-from typing import List, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 from pikepdf import Array, Name, OutlineItem, Page, Pdf, String
 
-from .log import logger
+from ..log import logger
+from .common import new_path_with_timestamp, require_exists
 
 
 def parse_outline_tree(
@@ -84,7 +85,8 @@ def get_destiny_page_number(outline: OutlineItem, names) -> int:
     return outline.destination
 
 
-def get(pdf_path: Path, bookmark_txt_path: Path):
+@require_exists()
+def get(pdf_path: Path, bookmark_txt_path: Optional[Path]):
     # https://github.com/pikepdf/pikepdf/issues/149#issuecomment-860073511
     def has_nested_key(obj, keys):
         to_check = obj
@@ -109,13 +111,6 @@ def get(pdf_path: Path, bookmark_txt_path: Path):
         else:
             raise ValueError
 
-    if not pdf_path.exists():
-        logger.error(f'no such file: {pdf_path}')
-        exit()
-
-    if bookmark_txt_path.exists():
-        logger.warning(f'overwrite {bookmark_txt_path}')
-
     pdf = Pdf.open(pdf_path)
     names = get_names(pdf)
 
@@ -134,6 +129,11 @@ def get(pdf_path: Path, bookmark_txt_path: Path):
         title_page_space = ' ' * (max_length - level * 2 - len(title))
         return f'{level_space}{title}{title_page_space}{page}'
 
+    if bookmark_txt_path is None:
+        bookmark_txt_path = new_path_with_timestamp(pdf_path, '.txt')
+    if bookmark_txt_path.exists():
+        logger.warning(f'overwrite {bookmark_txt_path}')
+
     bookmark_txt_path.write_text('\n'.join(map(fmt, outlines)), encoding='utf-8')
 
-    logger.info(f'the bookmarks have been exported to\n{bookmark_txt_path}')
+    logger.info(f'save as\n{bookmark_txt_path}')

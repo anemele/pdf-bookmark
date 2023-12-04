@@ -1,10 +1,10 @@
-import logging
+import logging as _logging
 import sys
 
-logging.basicConfig(
+_logging.basicConfig(
     format='[%(levelname)s] %(message)s',
-    level=logging.INFO,
+    level=_logging.INFO,
     stream=sys.stdout,
 )
 
-logger = logging.getLogger(__package__)
+logger = _logging.getLogger(__package__)

@@ -1,5 +1,4 @@
 from pathlib import Path
-from typing import Optional
 
 import click
 
@@ -23,7 +22,7 @@ def cli():
 @cli.command(name='get')
 @click.argument('pdf', type=Path)
 @click.argument('bookmark', type=Path, required=False)
-def get_bookmark(pdf: Path, bookmark: Optional[Path]):
+def get_bookmark(pdf: Path, bookmark: Path | None):
     """get bookmark from a PDF file"""
     logger.debug(f'{pdf=}')
     logger.debug(f'{bookmark=}')

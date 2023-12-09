@@ -1,7 +1,6 @@
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
-from typing import Optional, Union
 
 from pikepdf import Pdf
 
@@ -26,13 +25,13 @@ def require_exists(n: int = 1):
     return decorator
 
 
-def new_path_with_timestamp(path: Path, ext: Optional[str] = None):
+def new_path_with_timestamp(path: Path, ext: str | None = None):
     now = f'-{datetime.now():%y%m%d%H%M%S}'
 
     return path.with_name(path.stem + now + (ext or path.suffix))
 
 
-def save_as(ext: Optional[str] = None):
+def save_as(ext: str | None = None):
     """save the output file automatically
     `ext` requires starting with dot `.`, such as `.txt`
     """
@@ -46,7 +45,7 @@ def save_as(ext: Optional[str] = None):
                 return
 
             path: Path
-            sth: Union[Pdf, str]
+            sth: Pdf | str
             path, sth = ret
 
             out_path = new_path_with_timestamp(path, ext)

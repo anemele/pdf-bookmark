@@ -1,6 +1,5 @@
 import re
 from pathlib import Path
-from typing import List, Optional
 
 from pikepdf import OutlineItem, Pdf
 
@@ -13,8 +12,8 @@ def _set(pdf: Pdf, bookmark_txt_path: Path, page_offset: int):
 
     MAX_PAGES = len(pdf.pages)
 
-    bookmarks: List[OutlineItem] = []
-    history_indent: List[int] = []
+    bookmarks: list[OutlineItem] = []
+    history_indent: list[int] = []
 
     # decide the level of each bookmark according to the relative indent size in each line
     #   no indent:          level 1
@@ -22,8 +21,8 @@ def _set(pdf: Pdf, bookmark_txt_path: Path, page_offset: int):
     #       larger indent:  level 3
     #   ...
     def get_parent_bookmark(
-        current_indent: int, history_indent: List[int], bookmarks: List[OutlineItem]
-    ) -> Optional[OutlineItem]:
+        current_indent: int, history_indent: list[int], bookmarks: list[OutlineItem]
+    ) -> OutlineItem | None:
         """The parent of A is the nearest bookmark whose indent is smaller than A's"""
         assert len(history_indent) == len(bookmarks)
         if current_indent == 0:

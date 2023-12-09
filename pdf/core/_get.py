@@ -1,6 +1,5 @@
 from itertools import chain
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
 
 from pikepdf import Array, Name, OutlineItem, Page, Pdf, String
 
@@ -9,8 +8,8 @@ from .common import new_path_with_timestamp, require_exists
 
 
 def parse_outline_tree(
-    outlines: Union[OutlineItem, List[OutlineItem]], level: int = 0, names=None
-) -> List[Tuple[int, int, str]]:
+    outlines: OutlineItem | list[OutlineItem], level: int = 0, names=None
+) -> list[tuple[int, int, str]]:
     """Return List[Tuple[level(int), page(int), title(str)]]"""
 
     if isinstance(outlines, (list, tuple)):
@@ -86,7 +85,7 @@ def get_destiny_page_number(outline: OutlineItem, names) -> int:
 
 
 @require_exists()
-def get(pdf_path: Path, bookmark_txt_path: Optional[Path]):
+def get(pdf_path: Path, bookmark_txt_path: Path | None):
     # https://github.com/pikepdf/pikepdf/issues/149#issuecomment-860073511
     def has_nested_key(obj, keys):
         to_check = obj
@@ -96,7 +95,7 @@ def get(pdf_path: Path, bookmark_txt_path: Optional[Path]):
             to_check = to_check[key]
         return True
 
-    def get_names(pdf: Pdf) -> List:
+    def get_names(pdf: Pdf) -> list:
         # 此处可能出错（可能由于PDF被其它程序编辑过）
         if not hasattr(pdf, 'Root'):
             return []
